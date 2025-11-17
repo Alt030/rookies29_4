@@ -6,6 +6,8 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import pymysql
 
+from insert_data import is_similar_job
+
 load_dotenv()
 
 # DB 연결
@@ -19,6 +21,15 @@ conn = pymysql.connect(
 )
 cursor = conn.cursor()
 
+# 기존 공고 불러오기 
+# (company_name, title)만 가져와서 list[dict] 형태로 변환
+cursor.execute("SELECT company_name, title FROM job")
+rows = cursor.fetchall()
+existing_jobs = [
+    {"company_name": r[0], "title": r[1]}
+    for r in rows
+]
+print("기존 공고 개수:", len(existing_jobs))
 
 HEADERS = {
     'User-Agent': (
@@ -82,7 +93,7 @@ def parse_date(text: str):
     return None
 
 
-# 크롤링 
+# 크롤링 and 중복체
 for page in range(1, PAGE_LIMIT + 1):
 
     url = f"{BASE_URL}&recruitPage={page}"
@@ -110,7 +121,20 @@ for page in range(1, PAGE_LIMIT + 1):
 
         start_time = None   # 사람인은 시작일 없음 → NULL
 
-        
+        # 새 공고 정보를 dict 로 만들기 (유사도 체크용)
+        new_job = {
+            "company_name": company_name,
+            "title": title,
+            "start_time": start_time,
+            "end_time": end_time,
+            "detail": detail_url,
+        }
+
+        # 유사도 기준 중복 여부 확인 
+        if is_similar_job(new_job, existing_jobs, threshold=0.85):
+            print(f"[유사중복 스킵] {company_name} - {title}")
+            continue
+
 
         # INSERT
         insert_sql = """
@@ -127,6 +151,9 @@ for page in range(1, PAGE_LIMIT + 1):
             detail_url
         ))
         conn.commit()
+
+        # 방금 넣은 공고도 existing_jobs에 추가해서 같은 실행 안에서 뒤에 나오는 공고와도 비교되게 함
+        existing_jobs.append({"company_name": company_name, "title": title})
 
         print(f"[저장 완료] {company_name} - {title}")
 
