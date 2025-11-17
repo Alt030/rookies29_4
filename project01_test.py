@@ -5,7 +5,6 @@ from mysql.connector import Error
 from dotenv import load_dotenv
 import os
 
-# 🔹 .env 파일 로드
 load_dotenv()
 
 def crawl_jobs(max_pages=20):
@@ -109,3 +108,4 @@ if __name__ == "__main__":
         print(f"채용공고 {len(job_list)}건 크롤링 완료 / pj01_test.txt 저장 완료")
     else:
         print("크롤링된 채용공고가 없음")
+
