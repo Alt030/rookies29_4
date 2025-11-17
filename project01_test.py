@@ -2,7 +2,11 @@ import requests
 from bs4 import BeautifulSoup
 import mysql.connector
 from mysql.connector import Error
-from datetime import datetime
+from dotenv import load_dotenv
+import os
+
+# 🔹 .env 파일 로드
+load_dotenv()
 
 def crawl_jobs(max_pages=20):
     url = "https://jasoseol.com/search?dutyGroupIds=166%2C175%2C176%2C177%2C178&excludeClosed=true"
@@ -14,7 +18,7 @@ def crawl_jobs(max_pages=20):
         res.raise_for_status()
         soup = BeautifulSoup(res.text, "html.parser")
 
-        items = soup.select("main a")  
+        items = soup.select("main a")
 
         for item in items:
             href = item.get("href")
@@ -46,8 +50,6 @@ def crawl_jobs(max_pages=20):
 
     return jobs
 
-
-
 def save_and_print(jobs, filename="pj01_test.txt"):
     with open(filename, "w", encoding="utf-8") as f:
         for job in jobs:
@@ -65,11 +67,11 @@ def save_and_print(jobs, filename="pj01_test.txt"):
 def save_to_mysql(jobs):
     try:
         conn = mysql.connector.connect(
-            host="rookies29-04-mysql.cduwe6oii7rg.ap-southeast-2.rds.amazonaws.com",
-            port="3306",
-            user="jasoseol",
-            password="jasoseol123",
-            database="rookies29db"
+            host=os.getenv("DB_HOST"),
+            port=os.getenv("DB_PORT"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            database=os.getenv("DB_NAME")
         )
         cursor = conn.cursor()
 
@@ -79,10 +81,16 @@ def save_to_mysql(jobs):
         """
 
         for job in jobs:
-            cursor.execute(sql, (job["company"], job["title"], None, job["end_date"], job["detail"]))
+            cursor.execute(sql, (
+                job["company"],
+                job["title"],
+                job["start_date"],
+                job["end_date"],
+                job["detail"]
+            ))
 
         conn.commit()
-        print(f"DB에 채용공고{len(jobs)}건 저장 완료")
+        print(f"DB에 채용공고 {len(jobs)}건 저장 완료")
 
     except Error as e:
         print("MySQL 오류:", e)
@@ -98,6 +106,6 @@ if __name__ == "__main__":
         save_and_print(job_list)
         save_to_mysql(job_list)
 
-        print(f"채용공고{len(job_list)}건 크롤링 완료 / pj01_test.txt에 저장")
+        print(f"채용공고 {len(job_list)}건 크롤링 완료 / pj01_test.txt 저장 완료")
     else:
         print("크롤링된 채용공고가 없음")
