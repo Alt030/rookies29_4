@@ -80,6 +80,7 @@ def home():
                     SELECT id, auth_code, auth_expires_at, is_verified
                     FROM user
                     WHERE email = %s
+                    ORDER BY created_at DESC
                     LIMIT 1
                     """,
                     (email,),
