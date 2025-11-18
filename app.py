@@ -8,6 +8,8 @@ from flask import (
 from flask_mail import Mail, Message
 from dotenv import load_dotenv
 from db import get_connection
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 load_dotenv()
 
@@ -309,6 +311,58 @@ def search():
 
     return render_template("result.html", query=query, job_list=job_list)
 
+def send_daily():
+    since = datetime.now() - timedelta(days=1)
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT email, keyword
+                FROM user
+                WHERE is_verified = 1
+                  AND keyword IS NOT NULL
+                  AND keyword <> ''
+            """)
+            users = cursor.fetchall()
+
+            for u in users:
+                email = u["email"]
+                keyword = u["keyword"]
+                like = f"%{keyword}%"
+
+                cursor.execute("""
+                    SELECT company_name, title, start_time, end_time, detail, created_at
+                    FROM job
+                    WHERE created_at >= %s
+                      AND (title LIKE %s OR detail LIKE %s OR company_name LIKE %s)
+                    ORDER BY created_at DESC
+                """, (since, like, like, like))
+
+                jobs = cursor.fetchall()
+                if not jobs:
+                    continue
+
+                lines = [f"[{keyword}] 최근 24시간 동안 추가된 공고 목록입니다.", ""]
+                for j in jobs:
+                    lines.append(f"- {j['company_name']} / {j['title']} / 등록일: {j['created_at']}")
+                    if j["detail"]:
+                        lines.append(f"  상세: {j['detail']}")
+                    lines.append("")
+
+                body = "\n".join(lines)
+                subject = f"[취업 알림] '{keyword}' 관련 신규 공고 {len(jobs)}건 안내"
+
+                send_email(email, subject, body)
+
+scheduler = BackgroundScheduler(timezone="Asia/Seoul")
+scheduler.add_job(
+    func=send_daily,
+    trigger=CronTrigger(hour=13, minute=0),
+    id="send_daily_job",
+    replace_existing=True
+)
+
+scheduler.start()
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
