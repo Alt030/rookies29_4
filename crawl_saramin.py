@@ -47,7 +47,7 @@ BASE_URL = (
     f"&searchType=search&searchword={KEYWORDS}"
 )
 
-PAGE_LIMIT = 2
+PAGE_LIMIT = 10
 
 
 # 날짜 

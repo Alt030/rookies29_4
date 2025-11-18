@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from db import get_connection
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from urllib.parse import urlparse
 import subprocess
 import atexit
 
@@ -55,7 +56,7 @@ def send_email(to_email: str, subject: str, body: str):
     mail.send(msg)
 
 
-def send_keyword_emails(since_hours: int = 48) -> dict:
+def send_keyword_emails(since_hours: int = 24) -> dict:
     with app.app_context():
         since = datetime.now() - timedelta(hours=since_hours)
         print(f"[스케줄러] 메일 발송 시작: {since}")
@@ -416,12 +417,18 @@ def search():
     keywords_for_display = [kw.strip() for kw in query.split(",") if kw.strip()]
 
     for r in rows:
+        detail_url = r["detail"] or "#"
+        end_time = r["end_time"]
+        if end_time is None:
+            deadline = "미정"
+        else:
+            deadline = end_time.strftime("%Y-%m-%d") if hasattr(end_time, "strftime") else str(end_time)
         job_list.append(
             {
                 "title": r["title"],
                 "company": r["company_name"],
-                "deadline": r["end_time"],
-                "url": "#",
+                "deadline": deadline,
+                "url": detail_url,
                 "keywords": keywords_for_display,
             }
         )
