@@ -3,7 +3,7 @@ import random
 from datetime import datetime, timedelta
 from flask import (
     Flask, render_template, request, redirect,
-    url_for, flash
+    url_for, flash,
 )
 from flask_mail import Mail, Message
 from dotenv import load_dotenv
@@ -48,17 +48,18 @@ def home():
     """
     GET  → index.html 기본 화면
     POST → 
-      - verification_code가 있으면: 이메일 인증 처리
-      - 아니면: 알림 등록/키워드추가 or 구독 취소 처리
+      1) verification_code 있으면: 이메일 인증 처리 → 비밀번호 설정 화면으로 이동
+      2) set_password_* 있으면: 비밀번호 설정 처리
+      3) 그 외: 알림 등록(이메일+키워드) / 구독 취소(이메일+비번)
     """
-    is_pending_verification = False
-    pending_email = None
 
     if request.method == "GET":
         return render_template(
             "index.html",
             is_pending_verification=False,
+            is_setting_password=False,
             pending_email=None,
+            email_to_set_password=None,
             verification_code_length=VERIFICATION_CODE_LENGTH,
         )
 
@@ -66,7 +67,6 @@ def home():
 
     verification_code = form.get("verification_code", "").strip()
     if verification_code:
-
         email = form.get("email", "").strip()
 
         if not email:
@@ -100,7 +100,9 @@ def home():
                     return render_template(
                         "index.html",
                         is_pending_verification=True,
+                        is_setting_password=False,
                         pending_email=email,
+                        email_to_set_password=None,
                         verification_code_length=VERIFICATION_CODE_LENGTH,
                     )
 
@@ -118,7 +120,60 @@ def home():
                 )
             conn.commit()
 
-        flash("이메일 인증이 완료되었습니다. 이제 키워드 알림을 받을 수 있습니다.", "success")
+        flash("이메일 인증이 완료되었습니다. 이제 비밀번호를 설정해주세요.", "success")
+        return render_template(
+            "index.html",
+            is_pending_verification=False,
+            is_setting_password=True,
+            pending_email=None,
+            email_to_set_password=email,
+            verification_code_length=VERIFICATION_CODE_LENGTH,
+        )
+
+    set_pw1 = form.get("set_password_1", "").strip()
+    set_pw2 = form.get("set_password_2", "").strip()
+    email_for_pw = form.get("email_to_set_password", "").strip()
+
+    if set_pw1 or set_pw2:
+        if not email_for_pw:
+            flash("이메일 정보가 없습니다. 처음부터 다시 시도해주세요.", "danger")
+            return redirect(url_for("home"))
+
+        if set_pw1 != set_pw2:
+            flash("두 비밀번호가 서로 일치하지 않습니다.", "danger")
+            return render_template(
+                "index.html",
+                is_pending_verification=False,
+                is_setting_password=True,
+                pending_email=None,
+                email_to_set_password=email_for_pw,
+                verification_code_length=VERIFICATION_CODE_LENGTH,
+            )
+
+        if len(set_pw1) != 4 or not set_pw1.isdigit():
+            flash("비밀번호는 숫자 4자리여야 합니다.", "danger")
+            return render_template(
+                "index.html",
+                is_pending_verification=False,
+                is_setting_password=True,
+                pending_email=None,
+                email_to_set_password=email_for_pw,
+                verification_code_length=VERIFICATION_CODE_LENGTH,
+            )
+
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE user
+                    SET password = %s
+                    WHERE email = %s
+                    """,
+                    (set_pw1, email_for_pw),
+                )
+            conn.commit()
+
+        flash("비밀번호 설정이 완료되었습니다. 이제 서비스 이용이 가능합니다.", "success")
         return redirect(url_for("home"))
 
     email = form.get("email", "").strip()
@@ -158,7 +213,9 @@ def home():
         return render_template(
             "index.html",
             is_pending_verification=True,
+            is_setting_password=False,
             pending_email=email,
+            email_to_set_password=None,
             verification_code_length=VERIFICATION_CODE_LENGTH,
         )
 
@@ -180,7 +237,7 @@ def home():
                 )
                 row = cursor.fetchone()
 
-                if not row or row["password"] != password:
+                if not row or str(row["password"]) != password:
                     flash("이메일 또는 비밀번호가 올바르지 않습니다.", "danger")
                     return redirect(url_for("home"))
 
@@ -199,6 +256,7 @@ def home():
 
     flash("입력 조건이 맞지 않습니다. 안내 문구를 다시 확인해주세요.", "warning")
     return redirect(url_for("home"))
+
 
 
 @app.route("/search", methods=["POST"])
