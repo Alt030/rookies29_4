@@ -3,167 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>검색 결과</title>
+    <title>{{ query }} 검색 결과 | JOB-FINDER</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
     <style>
-        /* Retro Web 2.0 Styles for Results */
+        
         body { 
-            font-family: 'Verdana', sans-serif;
-            background-color: #ECECEC;
-            color: #333;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            font-family: 'Inter', sans-serif; 
+            background-color: #f0f2f5; 
         }
-        .header {
-            width: 100%;
-            background: linear-gradient(to right, #4682B4, #5CACEE); 
-            color: white;
-            padding: 15px 0;
-            font-size: 24px;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-            margin-bottom: 20px;
+        .navbar {
+            background-color: #1a237e !important; /* Deep Indigo */
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            text-align: center;
         }
-        .container {
-            width: 95%;
-            max-width: 1100px;
-            padding: 20px;
-            background-color: #FFFFFF;
-            border: 1px solid #B0C4DE;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            /* 푸터 제거로 인한 하단 여백 추가 */
+        .container { 
+            margin-top: 30px; 
             margin-bottom: 50px;
         }
-        h1 {
-            color: #2F4F4F; /* 짙은 색상 */
-            margin-bottom: 15px;
-            font-size: 20px;
-            text-align: left;
+        .footer {
+            padding: 20px 0;
+            background-color: #343a40; 
+            color: #ccc;
+            margin-top: 50px;
         }
-        .result-summary {
-            background-color: #F0F8FF; /* 연한 파란색 요약 박스 */
-            padding: 10px;
-            border: 1px solid #B0C4DE;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            font-weight: bold;
+        /* results.html 전용 스타일 */
+        .job-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            margin-bottom: 25px;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 5px solid #00bcd4; /* Cyan Accent */
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
+        .job-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
         }
-        th, td {
-            border: 1px solid #DCDCDC; /* 밝은 회색 경계 */
-            padding: 12px;
-            text-align: left;
+        .job-header {
+            padding: 20px;
+            padding-bottom: 10px;
         }
-        th {
-            background-color: #E0EEEE; /* 연한 청록색 헤더 */
-            color: #333;
-            font-weight: bold;
-            text-transform: uppercase;
+        .job-footer {
+            background-color: #f8f9fa;
+            padding: 15px 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.85rem;
+            color: #6c757d;
         }
-        tr:nth-child(even) {
-            background-color: #F5F5F5; /* 짝수 행에 배경색 */
-        }
-        .job-title a {
-            color: #008080; /* 청록색 링크 */
-            text-decoration: none;
-            font-weight: bold;
-        }
-        .job-title a:hover {
-            text-decoration: underline;
-        }
-        .keyword-tag {
-            background-color: #A9A9A9; /* 회색 태그 */
-            color: white;
-            padding: 3px 8px;
+        .tag-badge {
+            font-size: 0.8rem;
             margin-right: 5px;
-            font-size: 11px;
-            border-radius: 3px;
-            display: inline-block;
-            margin-top: 3px;
+            margin-bottom: 5px;
+            background-color: #e3f2fd; /* Light Blue */
+            color: #1e88e5; /* Medium Blue */
+            font-weight: 500;
         }
         .no-results {
-            margin-top: 30px;
-            padding: 25px;
-            border: 2px solid #DDA0DD;
-            background-color: #FAF0F8; /* 연한 보라색 배경 */
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
             text-align: center;
-            border-radius: 6px;
-        }
-        .back-button {
-            margin-top: 30px;
-            padding: 10px 20px;
-            background-color: #808080; /* 회색 버튼 */
-            border-color: #696969;
-            color: white;
-            border-radius: 5px;
-            text-decoration: none;
-            display: inline-block;
-            font-weight: bold;
-            box-shadow: 0 3px 0 0 #696969; /* 입체 효과 */
-            transition: all 0.1s;
-        }
-        .back-button:active {
-             box-shadow: 0 1px 0 0 #696969;
-            transform: translateY(2px);
+            border: 2px dashed #ccc;
+            color: #6c757d;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        검색 결과 | {{ query }}
-    </div>
-
+   
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+        <div class="container-fluid container">
+            <a class="navbar-brand fw-bold fs-4" href="/">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-briefcase-fill me-2" viewBox="0 0 16 16">
+                    <path d="M6.5 1A1.5 1.5 0 0 0 5 2.5V3H1.5A1.5 1.5 0 0 0 0 4.5v8A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 14.5 3H11v-.5A1.5 1.5 0 0 0 9.5 1zM7 2.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5V3H7z"/>
+                </svg>
+                JOB-FINDER
+            </a>
+            <a href="/" class="btn btn-sm btn-outline-light">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-house-door-fill me-1" viewBox="0 0 16 16">
+                    <path d="M6.5 14.5v-3.505c0-.247.228-.492.492-.492h2.025c.264 0 .488.245.492.492v3.505a.5.5 0 0 0 .5.5h2.485a.5.5 0 0 0 .5-.5v-9.793a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5V4.329L8.354 1.146a.5.5 0 0 0-.708 0z"/>
+                </svg>
+                메인 페이지로
+            </a>
+        </div>
+    </nav>
+    
     <div class="container">
-        <h1>검색어: "{{ query }}"</h1>
         
-        <div class="result-summary">
-            총 {{ count }} 건의 공고가 검색되었습니다.
+        <div class="d-flex justify-content-between align-items-center mb-4 pt-3">
+            <h1 class="display-6 fw-bold">
+                '{{ query }}' 검색 결과
+            </h1>
+            <span class="badge bg-primary fs-5 py-2 px-3">{{ job_list|length }} 건</span>
         </div>
 
-        {% if jobs %}
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 35%;">공고 제목</th>
-                        <th style="width: 15%;">회사</th>
-                        <th style="width: 30%;">키워드</th>
-                        <th style="width: 10%;">마감일</th>
-                        <th style="width: 10%;">출처</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for job in jobs %}
-                        <tr>
-                            <td class="job-title"><a href="{{ job.url }}" target="_blank">{{ job.title }}</a></td>
-                            <td>{{ job.company }}</td>
-                            <td>
-                                {% for keyword in job.keywords %}
-                                    <span class="keyword-tag">{{ keyword }}</span>
-                                {% endfor %}
-                            </td>
-                            <td>{{ job.deadline }}</td>
-                            <td>{{ job.source }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        {% if job_list %}
+            <div class="row">
+                {% for job in job_list %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="job-card">
+                            <div class="job-header">
+                                <h5 class="fw-bold text-dark mb-1">
+                                    <a href="{{ job.url }}" target="_blank" class="text-decoration-none text-dark">{{ job.title }}</a>
+                                </h5>
+                                <p class="text-muted mb-2">{{ job.company }}</p>
+                                <div class="mt-2 d-flex flex-wrap">
+                                    {% for keyword in job.keywords %}
+                                        <span class="badge tag-badge rounded-pill px-3 py-1">{{ keyword }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="job-footer">
+                                <div>
+                                    <span class="fw-semibold">마감일:</span> {{ job.deadline }}
+                                </div>
+                                <div>
+                                    <span class="fw-semibold">출처:</span> {{ job.source }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
         {% else %}
             <div class="no-results">
-                <h3>검색 결과 없음</h3>
-                <p>'{{ query }}'에 해당하는 채용 공고를 찾을 수 없습니다.</p>
+                <h3 class="fw-bold">😭 검색 결과 없음</h3>
+                <p>입력하신 키워드 '{{ query }}'와 일치하는 채용 공고를 찾을 수 없습니다.</p>
+                <a href="/" class="btn btn-primary mt-3">키워드 변경 후 다시 검색하기</a>
             </div>
         {% endif %}
-        
-        <a href="{{ url_for('home') }}" class="back-button">메인 페이지로 돌아가기</a>
+
     </div>
+
+  
+    <footer class="footer text-center">
+        <div class="container">
+            <p class="mb-0">&copy; 2024 JOB-FINDER Service. | Python & Flask Project.</p>
+        </div>
+    </footer>
+
     
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>

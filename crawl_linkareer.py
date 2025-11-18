@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import os
 import pymysql
 import json
+import insert_data
 
 from dotenv import load_dotenv
 
@@ -65,7 +66,6 @@ def GetJobs(page: int = 1, page_size: int = 20):
             "detail": detail_url,
         }
         jobs.append(job)
-        break
 
     return jobs
 
@@ -97,8 +97,8 @@ def get_existing_details(details: list[str]) -> set[str]:
     finally:
         conn.close()
 
-def insert_jobs(jobs: list[dict]):
-    if not jobs:
+def insert_jobs(job):
+    if not job:
         return
 
     db = get_db_connection()
@@ -113,17 +113,16 @@ def insert_jobs(jobs: list[dict]):
         )
         """
 
-        for job in jobs:
-            cursor.execute(
-                sql,
-                (
-                    job["company_name"],
-                    job["title"],
-                    None,
-                    job["end_time"],
-                    job["detail"],
-                ),
-            )
+        cursor.execute(
+            sql,
+            (
+                job["company_name"],
+                job["title"],
+                None,
+                job["end_time"],
+                job["detail"],
+            ),
+        )
 
         db.commit()
     finally:
@@ -132,6 +131,7 @@ def insert_jobs(jobs: list[dict]):
 
 
 def main():
+    exitsting_jobs = insert_data.get_existing_jobs()
     PAGE_SIZE = 20
     page = 1
     total_new = 0
@@ -154,9 +154,12 @@ def main():
             print(f"{page} 페이지에 새로운 공고가 없습니다")
             break
 
-        insert_jobs(new_jobs)
-        total_new += len(new_jobs)
-        print(f"{page}: 새로운 공고 {len(new_jobs)}건 저장, 누적 {total_new}건")
+        for job in new_jobs:
+            if not insert_data.is_similar_job_normalize_company(job, exitsting_jobs):
+                insert_jobs(job)
+                total_new += len(job)
+            else:
+                print(f"{job} 중복 제거")
 
         if len(jobs) < PAGE_SIZE:
             print(f"{page}: 길이 {len(jobs)} < {PAGE_SIZE}, 마지막 페이지이므로 종료.")
