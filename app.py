@@ -3,13 +3,17 @@ import random
 from datetime import datetime, timedelta
 from flask import (
     Flask, render_template, request, redirect,
-    url_for, flash,
+    url_for, flash, jsonify
 )
+from apscheduler.schedulers.background import BackgroundScheduler
 from flask_mail import Mail, Message
 from dotenv import load_dotenv
 from db import get_connection
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+import subprocess
+import atexit
+
 
 load_dotenv()
 
@@ -25,6 +29,12 @@ app.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD")
 app.config["MAIL_DEFAULT_SENDER"] = os.getenv("MAIL_DEFAULT_SENDER")
 
 mail = Mail(app)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CRAWLER_SCRIPTS = [
+    "crawl_saramin.py",
+    "crawl_linkareer.py",
+    "project01_test.py",
+]
 
 VERIFICATION_CODE_LENGTH = 6
 
@@ -43,6 +53,113 @@ def send_email(to_email: str, subject: str, body: str):
     msg = Message(subject=subject, recipients=[to_email])
     msg.body = body
     mail.send(msg)
+
+
+def send_keyword_emails(since_hours: int = 48) -> dict:
+    with app.app_context():
+        since = datetime.now() - timedelta(hours=since_hours)
+        print(f"[스케줄러] 메일 발송 시작: {since}")
+
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT email, keyword
+                    FROM user
+                    WHERE
+                        is_verified = 1
+                        AND keyword IS NOT NULL
+                        AND keyword <> ''
+                    """
+                )
+                users = cursor.fetchall()
+
+            total_users = len(users)
+            sent_count = 0
+
+            for user in users:
+                email = user["email"]
+                keyword = user["keyword"]
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        SELECT
+                            company_name,
+                            title,
+                            start_time,
+                            end_time,
+                            detail,
+                            created_at
+                        FROM job
+                        WHERE
+                            created_at >= %s
+                            AND (
+                                title LIKE CONCAT('%%', %s, '%%')
+                                OR detail LIKE CONCAT('%%', %s, '%%')
+                                OR company_name LIKE CONCAT('%%', %s, '%%')
+                            )
+                        ORDER BY created_at DESC
+                        """,
+                        (since, keyword, keyword, keyword),
+                    )
+                    jobs = cursor.fetchall()
+
+                if not jobs:
+                    continue
+
+                lines = [
+                    f"[{keyword}] 키워드에 대한 최근 {since_hours}시간 새 공고 목록입니다.",
+                    "",
+                ]
+                for job in jobs:
+                    lines.append(
+                        f"- {job['company_name']} / {job['title']} / 등록일: {job['created_at']}"
+                    )
+                    if job.get("detail"):
+                        lines.append(f"  상세: {job['detail']}")
+                    lines.append("")
+
+                body = "\n".join(lines)
+                subject = f"[취업 알림] '{keyword}' 관련 새 공고 {len(jobs)}건 안내"
+                send_email(email, subject, body)
+                sent_count += 1
+
+        return {
+            "target_users": total_users,
+            "sent_to": sent_count,
+        }
+
+
+def run_single_crawler(script_name: str):
+    script_path = os.path.join(BASE_DIR, script_name)
+    print(f"[스케줄러] 크롤러 실행 시작: {script_path}")
+    result = subprocess.run(
+        ["python", script_path],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        print(
+            f"[스케줄러] 크롤러 실패 ({script_name}): {result.stderr or result.stdout}"
+        )
+    else:
+        print(f"[스케줄러] 크롤러 실행 완료 ({script_name})")
+
+
+def run_daily_crawl_and_notify():
+    print("[스케줄러] 일일 크롤링 및 메일 발송 작업 시작")
+    for script in CRAWLER_SCRIPTS:
+        try:
+            run_single_crawler(script)
+        except Exception as exc:
+            print(f"[스케줄러] {script} 실행 중 오류: {exc}")
+
+    try:
+        stats = send_keyword_emails()
+        print(f"[스케줄러] 메일 발송 요약: {stats}")
+    except Exception as exc:
+        print(f"[스케줄러] 메일 발송 중 오류: {exc}")
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -311,58 +428,33 @@ def search():
 
     return render_template("result.html", query=query, job_list=job_list)
 
+@app.route("/send-daily", methods=["GET"])
 def send_daily():
-    since = datetime.now() - timedelta(days=1)
+    stats = send_keyword_emails()
+    return jsonify(
+        {
+            "message": "24시간 이내 새 공고 메일 발송 작업 완료",
+            **stats,
+        }
+    )
 
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT email, keyword
-                FROM user
-                WHERE is_verified = 1
-                  AND keyword IS NOT NULL
-                  AND keyword <> ''
-            """)
-            users = cursor.fetchall()
+def setup_scheduler():
+    scheduler = BackgroundScheduler(timezone="Asia/Seoul")
+    scheduler.add_job(
+        run_daily_crawl_and_notify,
+        trigger="cron",
+        hour=13,
+        minute=52,
+        id="daily_crawl_job",
+        replace_existing=True,
+    )
+    scheduler.start()
+    print("[스케줄러] 스케줄러 시작")
+    atexit.register(lambda: scheduler.shutdown(wait=False))
 
-            for u in users:
-                email = u["email"]
-                keyword = u["keyword"]
-                like = f"%{keyword}%"
-
-                cursor.execute("""
-                    SELECT company_name, title, start_time, end_time, detail, created_at
-                    FROM job
-                    WHERE created_at >= %s
-                      AND (title LIKE %s OR detail LIKE %s OR company_name LIKE %s)
-                    ORDER BY created_at DESC
-                """, (since, like, like, like))
-
-                jobs = cursor.fetchall()
-                if not jobs:
-                    continue
-
-                lines = [f"[{keyword}] 최근 24시간 동안 추가된 공고 목록입니다.", ""]
-                for j in jobs:
-                    lines.append(f"- {j['company_name']} / {j['title']} / 등록일: {j['created_at']}")
-                    if j["detail"]:
-                        lines.append(f"  상세: {j['detail']}")
-                    lines.append("")
-
-                body = "\n".join(lines)
-                subject = f"[취업 알림] '{keyword}' 관련 신규 공고 {len(jobs)}건 안내"
-
-                send_email(email, subject, body)
-
-scheduler = BackgroundScheduler(timezone="Asia/Seoul")
-scheduler.add_job(
-    func=send_daily,
-    trigger=CronTrigger(hour=13, minute=0),
-    id="send_daily_job",
-    replace_existing=True
-)
-
-scheduler.start()
+if not app.debug or os.getenv("WERKZEUG_RUN_MAIN") == "true":
+    print("[스케줄러] 스케줄러 설정 시작")
+    setup_scheduler()
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

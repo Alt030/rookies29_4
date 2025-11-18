@@ -150,7 +150,7 @@ if __name__ == "__main__":
     job_list = crawl_jobs(max_pages=20)
 
     if job_list:
-        save_and_print(job_list)   # txt 저장 + 출력
+        # save_and_print(job_list)   # txt 저장 + 출력
         save_to_mysql(job_list)    # DB 저장
 
         print(f"채용공고 {len(job_list)}건 크롤링 완료 / pj01_test.txt 저장 완료")
